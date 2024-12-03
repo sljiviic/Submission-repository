@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import Persons from './components/Persons';
 import PersonForm from './components/PersonForm';
 import Filter from './components/Filter';
-import axios from 'axios';
+import personService from './services/persons';
 
 const App = () => {
   const [persons, setPersons] = useState([]);
@@ -11,11 +11,12 @@ const App = () => {
   const [filter, setFilter] = useState('');
 
   useEffect(() => {
-    axios
-      .get('http://localhost:3001/persons')
-      .then(response => {
-        const fetchedPerson = response.data;
-        setPersons(fetchedPerson);
+    personService.getAll()
+      .then(initialPersons => {
+        setPersons(initialPersons);
+      })
+      .catch(error => {
+        console.error("Failed to fetch data:", error);
       });
   }, []);
 
@@ -26,7 +27,7 @@ const App = () => {
   });
 
   const findEqual = (arr, obj) => {
-    return arr.some(item => item.name === obj.name);
+    return arr.find(item => item.name === obj.name);
   }
 
   const resetState = () => {
@@ -34,38 +35,92 @@ const App = () => {
     setNewNumber('');
   }
 
+  const addPerson = obj => {
+    personService.create(obj)
+      .then(returnedPerson => {
+        setPersons(persons.concat(returnedPerson));
+        resetState();
+      })
+      .catch(error => {
+        console.error("Failed to create person:", error);
+        alert("Error creating the person. Please try again.");
+      });
+  }
+
+  const deletePerson = (obj, id) => {
+    if (confirm(`Delete ${obj.name} ?`)) {
+      personService.remove(id)
+        .then(() => {
+          setPersons(prevPersons => prevPersons.filter(p => p.id !== id))
+        })
+        .catch(error => {
+          console.error("Failed to delete person:", error);
+          alert("Error deleting the person. Please try again.");
+        });
+    }
+  }
+
+  const updatePerson = obj => {
+    if (confirm(`${newName} is already added to phonebook, replace the old number with a new one?`)) {
+      const changedPerson = { ...obj, number: newNumber };
+
+      personService.update(obj.id, changedPerson)
+        .then(returnedPerson => {
+          setPersons(prevPersons => prevPersons.map(person => person.id === returnedPerson.id ? returnedPerson : person));
+          resetState();
+        })
+        .catch(error => {
+          console.error("Failed to replace person:", error);
+          alert("Error replacing the person. Please try again.");
+        });
+    }
+  }
+
+  const handleNameChange = e => setNewName(e.target.value);
+  const handleNumChange = e => setNewNumber(e.target.value);
+  const handleFilterChange = e => setFilter(e.target.value);
+
   const handleFormSubmit = e => {
     e.preventDefault();
 
     if (!newName || !newNumber) {
+      alert("Please provide both a name and a valid phone number.");
       return;
     }
 
-    const newObj = { name: newName, number: newNumber, id: persons.length + 1 };
+    const personObj = { name: newName, number: newNumber };
+    const duplicate = findEqual(persons, personObj);
 
-    if (findEqual(persons, newObj)) {
-      alert(`${newName} is already added to phonebook`);
-      return;
+    if (duplicate) {
+      updatePerson(duplicate);
+    } else {
+      addPerson(personObj);
     }
+  }
 
-    setPersons(persons.concat(newObj));
-    resetState();
+  const handlePersonDel = id => {
+    const person = persons.find(p => p.id === id);
+
+    deletePerson(person, id);
   }
 
   return (
     <div>
       <h2>Phonebook</h2>
-      <Filter filter={filter} onChange={e => setFilter(e.target.value)} />
+      <Filter filter={filter} onChange={handleFilterChange} />
       <h2>add a new</h2>
       <PersonForm
         onSubmit={handleFormSubmit}
         newName={newName}
         newNumber={newNumber}
-        handleNameChange={e => setNewName(e.target.value)}
-        handleNumChange={e => setNewNumber(e.target.value)}
+        handleNameChange={handleNameChange}
+        handleNumChange={handleNumChange}
       />
       <h2>Numbers</h2>
-      <Persons personsList={personsList} />
+      <Persons
+        personsList={personsList}
+        handlePersonDel={handlePersonDel}
+      />
     </div>
   );
 }
