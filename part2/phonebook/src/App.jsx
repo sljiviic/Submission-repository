@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import Persons from './components/Persons';
 import PersonForm from './components/PersonForm';
 import Filter from './components/Filter';
+import Notification from './components/Notification';
 import personService from './services/persons';
 
 const App = () => {
@@ -9,6 +10,7 @@ const App = () => {
   const [newName, setNewName] = useState('');
   const [newNumber, setNewNumber] = useState('');
   const [filter, setFilter] = useState('');
+  const [message, setMessage] = useState({ msg: null, type: null });
 
   useEffect(() => {
     personService.getAll()
@@ -20,17 +22,27 @@ const App = () => {
       });
   }, []);
 
+  useEffect(() => {
+    if (message.msg) {
+      const timeout = setTimeout(() => {
+        setMessage({ msg: null, type: null });
+      }, 5000)
+
+      return () => clearTimeout(timeout);
+    }
+  }, [message])
+
   const personsList = !filter ? persons : persons.filter(person => {
     const lcName = person.name.toLowerCase();
     const lcFilter = filter.toLowerCase();
     return lcName.includes(lcFilter);
   });
 
-  const findEqual = (arr, obj) => {
+  const findPersonByName = (arr, obj) => {
     return arr.find(item => item.name === obj.name);
   }
 
-  const resetState = () => {
+  const resetForm = () => {
     setNewName('');
     setNewNumber('');
   }
@@ -39,41 +51,48 @@ const App = () => {
     personService.create(obj)
       .then(returnedPerson => {
         setPersons(persons.concat(returnedPerson));
-        resetState();
+        setMessage({ msg: `Added ${obj.name}`, type: 1 });
       })
       .catch(error => {
         console.error("Failed to create person:", error);
-        alert("Error creating the person. Please try again.");
+        setMessage({ msg: `Error creating the person. Please try again.`, type: 0 });
       });
   }
 
-  const deletePerson = (obj, id) => {
-    if (confirm(`Delete ${obj.name} ?`)) {
-      personService.remove(id)
-        .then(() => {
-          setPersons(prevPersons => prevPersons.filter(p => p.id !== id))
-        })
-        .catch(error => {
-          console.error("Failed to delete person:", error);
-          alert("Error deleting the person. Please try again.");
-        });
-    }
+  const deletePerson = id => {
+    const person = persons.find(p => p.id === id);
+    if (!person) return;
+
+    const confirmed = confirm(`Delete ${person.name} ?`);
+    if (!confirmed) return;
+
+    personService.remove(id)
+      .then(() => {
+        setPersons(prevPersons => prevPersons.filter(p => p.id !== id))
+      })
+      .catch(error => {
+        console.error("Failed to delete person:", error);
+        setMessage({ msg: `Information of ${person.name} has already been removed from server`, type: 0 });
+        setPersons(prevPersons => prevPersons.filter(p => p.id !== id));
+      });
   }
 
   const updatePerson = obj => {
-    if (confirm(`${newName} is already added to phonebook, replace the old number with a new one?`)) {
-      const changedPerson = { ...obj, number: newNumber };
+    const confirmed = confirm(`${newName} is already added to phonebook, replace the old number with a new one?`);
+    if (!confirmed) return;
 
-      personService.update(obj.id, changedPerson)
-        .then(returnedPerson => {
-          setPersons(prevPersons => prevPersons.map(person => person.id === returnedPerson.id ? returnedPerson : person));
-          resetState();
-        })
-        .catch(error => {
-          console.error("Failed to replace person:", error);
-          alert("Error replacing the person. Please try again.");
-        });
-    }
+    const changedPerson = { ...obj, number: newNumber };
+
+    personService.update(obj.id, changedPerson)
+      .then(returnedPerson => {
+        setPersons(prevPersons => prevPersons.map(person => person.id === returnedPerson.id ? returnedPerson : person));
+        setMessage({ msg: `${changedPerson.name}'s number is replaced with ${changedPerson.number}`, type: 1 });
+      })
+      .catch(error => {
+        console.error("Failed to replace person:", error);
+        setMessage({ msg: `Error replacing the person. Please try again.`, type: 0 });
+      });
+
   }
 
   const handleNameChange = e => setNewName(e.target.value);
@@ -83,30 +102,28 @@ const App = () => {
   const handleFormSubmit = e => {
     e.preventDefault();
 
-    if (!newName || !newNumber) {
-      alert("Please provide both a name and a valid phone number.");
-      return;
-    }
+    if (!newName || !newNumber) return;
 
     const personObj = { name: newName, number: newNumber };
-    const duplicate = findEqual(persons, personObj);
+    const duplicate = findPersonByName(persons, personObj);
 
     if (duplicate) {
       updatePerson(duplicate);
+      resetForm();
     } else {
       addPerson(personObj);
+      resetForm();
     }
   }
 
   const handlePersonDel = id => {
-    const person = persons.find(p => p.id === id);
-
-    deletePerson(person, id);
+    deletePerson(id);
   }
 
   return (
     <div>
       <h2>Phonebook</h2>
+      <Notification message={message} />
       <Filter filter={filter} onChange={handleFilterChange} />
       <h2>add a new</h2>
       <PersonForm
