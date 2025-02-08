@@ -55,7 +55,7 @@ const App = () => {
       })
       .catch(error => {
         console.error("Failed to create person:", error);
-        setMessage({ msg: `Error creating the person. Please try again.`, type: 0 });
+        setMessage({ msg: error.response.data.error, type: 0 });
       });
   }
 
@@ -90,7 +90,7 @@ const App = () => {
       })
       .catch(error => {
         console.error("Failed to replace person:", error);
-        setMessage({ msg: `Error replacing the person. Please try again.`, type: 0 });
+        setMessage({ msg: error.response.data.error, type: 0 });
       });
 
   }
