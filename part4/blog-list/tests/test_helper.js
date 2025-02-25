@@ -1,20 +1,17 @@
 const Blog = require('../models/blog')
 const User = require('../models/user')
-const mongoose = require('mongoose')
 
 const initialBlogs = [
   {
     url: 'https://homepages.cwi.nl/~storm/teaching/reader/Dijkstra68.pdf',
     title: 'Go To Statement Considered Harmful',
     author: 'Edsger W. Dijkstra',
-    user: new mongoose.Types.ObjectId('67bcbe5eb2869c58b8c7788b'),
     likes: 5,
   },
   {
     url: 'https://reactpatterns.com/',
     title: 'React patterns',
     author: 'Michael Chan',
-    user: new mongoose.Types.ObjectId('67bcbe5eb2869c58b8c7788b'),
     likes: 7,
   }
 ]

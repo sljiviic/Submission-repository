@@ -1,4 +1,4 @@
-const { test, describe, beforeEach, after } = require('node:test')
+const { test, describe, before, after } = require('node:test')
 const assert = require('node:assert')
 const supertest = require('supertest')
 const mongoose = require('mongoose')
@@ -8,11 +8,15 @@ const helper = require('./test_helper')
 
 const api = supertest(app)
 
-describe('User API', () => {
-  beforeEach(async () => {
-    User.deleteMany({ username: { $ne: 'root' } })
-  })
+before(async () => {
+  await User.deleteMany({})
 
+  await api
+    .post('/api/users')
+    .send(helper.rootUser)
+})
+
+describe('User API', () => {
   describe('POST /api/users', () => {
     test('Fails if username is not given with a 400 status code and a proper error message', async () => {
       const usersAtStart = await helper.usersInDb()
@@ -102,7 +106,7 @@ describe('User API', () => {
       const user = {
         username: 'user1',
         name: 'user1',
-        password:'u1'
+        password: 'u1'
       }
 
       const response = await api

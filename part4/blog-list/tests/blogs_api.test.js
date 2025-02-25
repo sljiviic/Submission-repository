@@ -4,26 +4,36 @@ const supertest = require('supertest')
 const mongoose = require('mongoose')
 const app = require('../app')
 const Blog = require('../models/blog')
+const User = require('../models/user')
 const helper = require('./test_helper')
 
 const api = supertest(app)
 let token
 
 before(async () => {
-  const response = await api
+  await User.deleteMany({})
+
+  await api
+    .post('/api/users')
+    .send(helper.rootUser)
+
+  const rootUserLogin = await api
     .post('/api/login')
     .send(helper.rootUser)
 
-  token = response.body.token
+  token = rootUserLogin.body.token
 })
 
-describe.only('Blog API', () => {
+describe('Blog API', () => {
   beforeEach(async () => {
     await Blog.deleteMany({})
 
-    const blogObjects = helper.initialBlogs.map(blog => new Blog(blog))
-    const promiseArray = blogObjects.map(blog => blog.save())
-    await Promise.all(promiseArray)
+    for (const blog of helper.initialBlogs) {
+      await api
+        .post('/api/blogs')
+        .send(blog)
+        .set('Authorization', `Bearer ${token}`)
+    }
   })
 
   describe('GET /api/blogs', () => {
@@ -151,7 +161,7 @@ describe.only('Blog API', () => {
         likes: 0
       }
 
-      await api
+      const response = await api
         .post('/api/blogs')
         .send(newBlog)
         .expect(401)
@@ -159,11 +169,12 @@ describe.only('Blog API', () => {
 
       const blogsAtEnd = await helper.blogsInDb()
       assert.strictEqual(blogsAtEnd.length, blogsAtStart.length)
+      assert.strictEqual(response.body.error, 'token invalid')
     })
   })
 
   describe('DELETE /api/blogs/:id', () => {
-    test('deletes a blog successfully with status code 204', async () => {
+    test('authorized blog deletion attempt - succeeds with 204 if user is the creator', async () => {
       const blogsAtStart = await helper.blogsInDb()
       const blogToDelete = blogsAtStart[0]
 
@@ -176,6 +187,36 @@ describe.only('Blog API', () => {
       assert.strictEqual(blogsAtEnd.length, blogsAtStart.length - 1)
 
       assert.ok(!blogsAtEnd.find(blog => blog.title === blogToDelete.title))
+    })
+
+    test('unauthorized blog deletion attempt - fails with 403 if user is not the creator', async () => {
+      const blogsAtStart = await helper.blogsInDb()
+      const blogToDelete = blogsAtStart[0]
+
+      await api
+        .post('/api/users')
+        .send({
+          username: 'unauthorizedUser',
+          name: 'Unauthorized User',
+          password: 'testpassword'
+        })
+
+      const newUserLogin = await api
+        .post('/api/login')
+        .send({
+          username: 'unauthorizedUser',
+          password: 'testpassword'
+        })
+
+      const unauthorizedToken = newUserLogin.body.token
+
+      await api
+        .delete(`/api/blogs/${blogToDelete.id}`)
+        .set('Authorization', `Bearer ${unauthorizedToken}`)
+        .expect(403)
+
+      const blogsAtEnd = await helper.blogsInDb()
+      assert.strictEqual(blogsAtEnd.length, blogsAtStart.length)
     })
   })
 
@@ -206,9 +247,9 @@ describe.only('Blog API', () => {
       const blogToUpdate = blogsAtStart[0]
 
       const updatedBlogData = {
+        url: 'http://blog.cleancoder.com/uncle-bob/2016/05/01/TypeWars.html',
         title: 'Type wars',
         author: 'Robert C. Martin',
-        url: 'http://blog.cleancoder.com/uncle-bob/2016/05/01/TypeWars.html',
         likes: 2
       }
 
@@ -219,10 +260,7 @@ describe.only('Blog API', () => {
         .expect('Content-Type', /application\/json/)
 
       const newBlogFromDb = response.body
-      assert.strictEqual(newBlogFromDb.title, updatedBlogData.title)
-      assert.strictEqual(newBlogFromDb.author, updatedBlogData.author)
-      assert.strictEqual(newBlogFromDb.url, updatedBlogData.url)
-      assert.strictEqual(newBlogFromDb.likes, updatedBlogData.likes)
+      assert.deepStrictEqual(newBlogFromDb, { ...updatedBlogData, id: blogToUpdate.id, user: blogToUpdate.user.toString() })
 
       const blogsAtEnd = await helper.blogsInDb()
       assert.strictEqual(blogsAtEnd.length, blogsAtStart.length)
