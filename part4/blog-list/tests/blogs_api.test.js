@@ -1,4 +1,4 @@
-const { test, describe, beforeEach, after } = require('node:test')
+const { test, describe, beforeEach, before, after } = require('node:test')
 const assert = require('node:assert')
 const supertest = require('supertest')
 const mongoose = require('mongoose')
@@ -7,6 +7,15 @@ const Blog = require('../models/blog')
 const helper = require('./test_helper')
 
 const api = supertest(app)
+let token
+
+before(async () => {
+  const response = await api
+    .post('/api/login')
+    .send(helper.rootUser)
+
+  token = response.body.token
+})
 
 describe.only('Blog API', () => {
   beforeEach(async () => {
@@ -45,22 +54,25 @@ describe.only('Blog API', () => {
 
   describe('POST /api/blogs', () => {
     test('creates a new blog and increments the total count', async () => {
+      const blogsAtStart = await helper.blogsInDb()
+
       const newBlog = {
+        url: 'http://blog.cleancoder.com/uncle-bob/2017/03/03/TDD-Harms-Architecture.html',
         title: 'TDD harms architecture',
         author: 'Robert C. Martin',
-        url: 'http://blog.cleancoder.com/uncle-bob/2017/03/03/TDD-Harms-Architecture.html',
         likes: 0
       }
 
       await api
         .post('/api/blogs')
         .send(newBlog)
+        .set('Authorization', `Bearer ${token}`)
         .expect(201)
         .expect('Content-Type', /application\/json/)
 
       const blogsAtEnd = await helper.blogsInDb()
 
-      assert.strictEqual(blogsAtEnd.length, helper.initialBlogs.length + 1)
+      assert.strictEqual(blogsAtEnd.length, blogsAtStart.length + 1)
 
       const newBlogFromDb = blogsAtEnd.find(blog => blog.title === newBlog.title)
       assert.ok(newBlogFromDb)
@@ -80,6 +92,7 @@ describe.only('Blog API', () => {
       await api
         .post('/api/blogs/')
         .send(newBlog)
+        .set('Authorization', `Bearer ${token}`)
         .expect(201)
         .expect('Content-Type', /application\/json/)
 
@@ -91,6 +104,8 @@ describe.only('Blog API', () => {
     })
 
     test('fails with status code 400 if the title is missing', async () => {
+      const blogsAtStart = await helper.blogsInDb()
+
       const newBlog = {
         author: 'Robert C. Martin',
         url: 'http://blog.cleancoder.com/uncle-bob/2017/03/03/TDD-Harms-Architecture.html',
@@ -100,11 +115,12 @@ describe.only('Blog API', () => {
       await api
         .post('/api/blogs')
         .send(newBlog)
+        .set('Authorization', `Bearer ${token}`)
         .expect(400)
         .expect('Content-Type', /application\/json/)
 
       const blogsAtEnd = await helper.blogsInDb()
-      assert.strictEqual(blogsAtEnd.length, helper.initialBlogs.length)
+      assert.strictEqual(blogsAtEnd.length, blogsAtStart.length)
     })
 
     test('fails with status code 400 if the URL is missing', async () => {
@@ -117,22 +133,43 @@ describe.only('Blog API', () => {
       await api
         .post('/api/blogs')
         .send(newBlog)
+        .set('Authorization', `Bearer ${token}`)
         .expect(400)
         .expect('Content-Type', /application\/json/)
 
       const blogsAtEnd = await helper.blogsInDb()
       assert.strictEqual(blogsAtEnd.length, helper.initialBlogs.length)
     })
+
+    test('fails with status code 401 if a token is not provided', async () => {
+      const blogsAtStart = await helper.blogsInDb()
+
+      const newBlog = {
+        url: 'http://blog.cleancoder.com/uncle-bob/2017/03/03/TDD-Harms-Architecture.html',
+        title: 'TDD harms architecture',
+        author: 'Robert C. Martin',
+        likes: 0
+      }
+
+      await api
+        .post('/api/blogs')
+        .send(newBlog)
+        .expect(401)
+        .expect('Content-Type', /application\/json/)
+
+      const blogsAtEnd = await helper.blogsInDb()
+      assert.strictEqual(blogsAtEnd.length, blogsAtStart.length)
+    })
   })
 
   describe('DELETE /api/blogs/:id', () => {
     test('deletes a blog successfully with status code 204', async () => {
-      const initialResponse = await api.get('/api/blogs')
-      const blogsAtStart = initialResponse.body
+      const blogsAtStart = await helper.blogsInDb()
       const blogToDelete = blogsAtStart[0]
 
       await api
         .delete(`/api/blogs/${blogToDelete.id}`)
+        .set('Authorization', `Bearer ${token}`)
         .expect(204)
 
       const blogsAtEnd = await helper.blogsInDb()
@@ -144,8 +181,7 @@ describe.only('Blog API', () => {
 
   describe('PUT /api/blogs/:id', () => {
     test('updates the number of likes for a blog', async () => {
-      const initialResponse = await api.get('/api/blogs')
-      const blogsAtStart = initialResponse.body
+      const blogsAtStart = await helper.blogsInDb()
       const blogToUpdate = blogsAtStart[0]
 
       const updatedBlogData = {
@@ -166,8 +202,7 @@ describe.only('Blog API', () => {
     })
 
     test('updates an entire blog post successfully', async () => {
-      const initialResponse = await api.get('/api/blogs')
-      const blogsAtStart = initialResponse.body
+      const blogsAtStart = await helper.blogsInDb()
       const blogToUpdate = blogsAtStart[0]
 
       const updatedBlogData = {

@@ -1,19 +1,28 @@
 const Blog = require('../models/blog')
+const User = require('../models/user')
+const mongoose = require('mongoose')
 
 const initialBlogs = [
   {
+    url: 'https://homepages.cwi.nl/~storm/teaching/reader/Dijkstra68.pdf',
     title: 'Go To Statement Considered Harmful',
     author: 'Edsger W. Dijkstra',
-    url: 'https://homepages.cwi.nl/~storm/teaching/reader/Dijkstra68.pdf',
+    user: new mongoose.Types.ObjectId('67bcbe5eb2869c58b8c7788b'),
     likes: 5,
   },
   {
+    url: 'https://reactpatterns.com/',
     title: 'React patterns',
     author: 'Michael Chan',
-    url: 'https://reactpatterns.com/',
+    user: new mongoose.Types.ObjectId('67bcbe5eb2869c58b8c7788b'),
     likes: 7,
   }
 ]
+
+const rootUser = {
+  username: 'root',
+  password: 'root123'
+}
 
 const blogsInDb = async () => {
   const blogs = await Blog.find({})
@@ -31,8 +40,15 @@ const nonExistingId = async () => {
   return blog._id.toString()
 }
 
+const usersInDb = async () => {
+  const users = await User.find({})
+  return users.map(user => user.toJSON())
+}
+
 module.exports = {
   initialBlogs,
   blogsInDb,
-  nonExistingId
+  nonExistingId,
+  usersInDb,
+  rootUser
 }

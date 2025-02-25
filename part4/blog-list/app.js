@@ -1,12 +1,16 @@
 const express = require('express')
-const app = express()
-
+require('express-async-errors')
 const cors = require('cors')
 const mongoose = require('mongoose')
-const blogRouter = require('./controllers/blog')
+const morgan = require('morgan')
 const config = require('./utils/config')
 const logger = require('./utils/logger')
-const morgan = require('morgan')
+const middleware = require('./utils/middleware')
+const userRouter = require('./controllers/users')
+const blogRouter = require('./controllers/blogs')
+const loginRouter = require('./controllers/login')
+
+const app = express()
 
 mongoose.set('strictQuery', false)
 
@@ -20,17 +24,19 @@ mongoose.connect(config.MONGODB_URI)
     logger.error(`error connecting to mongoDB: ${error.message}`)
   })
 
-// const corsOptions = {
-//   origin: 'http://localhost:5173'
-// }
-
 app.use(cors())
 app.use(express.json())
+app.use(middleware.tokenExtractor)
 morgan.token('reqData', req => JSON.stringify(req.body))
 if (process.env.NODE_ENV !== 'test') {
   app.use(morgan(':method :url :status :res[content-length] - :response-time ms :reqData'))
 }
 
 app.use('/api/blogs', blogRouter)
+app.use('/api/users', userRouter)
+app.use('/api/login', loginRouter)
+
+app.use(middleware.unknownEndpoint)
+app.use(middleware.errorHandler)
 
 module.exports = app

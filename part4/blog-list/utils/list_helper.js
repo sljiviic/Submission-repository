@@ -1,4 +1,4 @@
-const dummy = (blogs) => {
+const dummy = () => {
   return 1
 }
 
@@ -12,8 +12,7 @@ const favoriteBlog = (blogs) => {
   if (blogs.length === 0) return null
 
   const mostLikedBlog = blogs.reduce((topBlog, currentBlog) =>
-    currentBlog.likes > (topBlog.likes || 0) ? currentBlog : topBlog
-    , {})
+    currentBlog.likes > (topBlog.likes || 0) ? currentBlog : topBlog, {})
 
   return {
     title: mostLikedBlog.title,
